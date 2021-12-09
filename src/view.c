@@ -98,7 +98,7 @@ void format_context(elf_ctx_t *context) {
   }
 
   if (context->elf_prot.rwx_seg ||
-      (context->elf_prot.nx && context->elf_prot.writable_seg)) {
+      (!(context->elf_prot.nx) && context->elf_prot.writable_seg)) {
     printf(SPACE "RWX:  " SPACE RED "Has RWX segments\n" NO_COLOR);
   }
 

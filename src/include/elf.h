@@ -18,10 +18,10 @@
 
 typedef struct elf_prot {
   bool nx;
-  bool pie;
   bool canary;
   bool rwx_seg;
   bool writable_seg;
+  int pie;
   int relro;
 } elf_prot_t;
 

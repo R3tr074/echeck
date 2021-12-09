@@ -171,7 +171,15 @@ int elf64_parse(elf_ctx_t *context) {
 
   // if binary type is DYN, pie is enable
   if (elf_ehdr->e_type == ET_DYN) {
-    context->elf_prot.pie = true;
+    context->elf_prot.pie = 0;
+  } else {
+    // Address base
+    for (i = 0; i < elf_ehdr->e_phnum; i++) {
+      if (elf_phdr[i].p_type == PT_LOAD) {
+        context->elf_prot.pie = elf_phdr[i].p_vaddr;
+        break;
+      }
+    }
   }
 
   // canary

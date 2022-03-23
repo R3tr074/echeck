@@ -262,7 +262,7 @@ int elf_parse(elf_ctx_t *context) {
   if (memcmp(context->map_addr, ELFMAG, SELFMAG) != 0) return -1;
   int ret;
 
-  context->elf_prot.relro = 0;
+  context->elf_prot.relro = RELRO_NONE;
   context->elf_prot.canary = false;
   context->elf_prot.nx = false;
   context->elf_prot.pie = false;

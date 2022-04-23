@@ -26,7 +26,7 @@
 
 #define PIE_CHECK(_context, elf_ehdr, elf_phdr)       \
   if (elf_ehdr->e_type == ET_DYN) {                   \
-    context->elf_prot.pie = true;                     \
+    _context->elf_prot.pie = true;                     \
   } else {                                            \
     for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {  \
       if (elf_phdr[i].p_type == PT_LOAD) {            \
@@ -99,7 +99,7 @@
           continue;                                                            \
         if (strcmp((char *)(sdata + dot_sym[j].st_name), CANARY_STR_1) == 0 || \
             strcmp((char *)(sdata + dot_sym[j].st_name), CANARY_STR_2) == 0) { \
-          context->elf_prot.canary = true;                                     \
+          _context->elf_prot.canary = true;                                     \
           break;                                                               \
         }                                                                      \
       }                                                                        \

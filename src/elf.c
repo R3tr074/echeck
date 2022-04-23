@@ -14,6 +14,98 @@
 
 #include "macros.h"
 
+#define Elf_PROP(bits, prop) Elf ##bits ##prop
+
+#define NX_CHECK(_context, elf_ehdr, elf_phdr)                                 \
+  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {                             \
+    if (elf_phdr[i].p_type == PT_GNU_STACK && !(elf_phdr[i].p_flags & PF_X)) { \
+      _context->elf_prot.nx = true;                                            \
+      break;                                                                   \
+    }                                                                          \
+  }
+
+#define PIE_CHECK(_context, elf_ehdr, elf_phdr)       \
+  if (elf_ehdr->e_type == ET_DYN) {                   \
+    context->elf_prot.pie = true;                     \
+  } else {                                            \
+    for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {  \
+      if (elf_phdr[i].p_type == PT_LOAD) {            \
+        _context->elf_prot.pie = elf_phdr[i].p_vaddr; \
+        break;                                        \
+      }                                               \
+    }                                                 \
+  }
+
+#define RELRO_CHECK(BITS, _context, elf_ehdr, elf_phdr, elf_shdr)             \
+  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {                            \
+    if (elf_phdr[i].p_type == PT_GNU_RELRO) {                                 \
+      _context->elf_prot.relro = RELRO_PARTIAL;                               \
+      break;                                                                  \
+    }                                                                         \
+  }                                                                           \
+  for (size_t i = 0; i < elf_ehdr->e_shnum; i++) {                            \
+    if (elf_shdr[i].sh_type == SHT_DYNAMIC) {                                 \
+      Elf_PROP(BITS, _Dyn) *dot_dynamic =                                     \
+          (Elf_PROP(BITS, _Dyn) *)((void *)elf_ehdr + elf_shdr[i].sh_offset); \
+      int num = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize, flags;          \
+      for (size_t j = 0; j < num; j++) {                                      \
+        if (dot_dynamic[j].d_tag == DT_FLAGS) {                               \
+          flags = dot_dynamic[j].d_un.d_val;                                  \
+          if (flags & DF_BIND_NOW) {                                          \
+            _context->elf_prot.relro = RELRO_FULL;                            \
+            break;                                                            \
+          }                                                                   \
+        }                                                                     \
+        if (dot_dynamic[j].d_tag == DT_FLAGS_1) {                             \
+          flags = dot_dynamic[j].d_un.d_val;                                  \
+          if (flags & DF_1_NOW) {                                             \
+            _context->elf_prot.relro = RELRO_FULL;                            \
+            break;                                                            \
+          }                                                                   \
+        }                                                                     \
+      }                                                                       \
+    }                                                                         \
+  }
+
+#define RWX_CHECK(_context, elf_ehdr, elf_phdr) \
+  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {     \
+    int rwx = PF_X | PF_W;                      \
+    if ((elf_phdr[i].p_flags & rwx) == rwx) {   \
+      _context->elf_prot.rwx_seg = true;         \
+      break;                                    \
+    }                                           \
+  }
+
+#define WRITEABLE_CHECK(_context, elf_ehdr, elf_phdr) \
+  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {    \
+    int rw = PF_W;                                    \
+    if ((elf_phdr[i].p_flags & rw) == rw) {           \
+      _context->elf_prot.writable_seg = true;         \
+      break;                                          \
+    }                                                 \
+  }
+
+#define CANARY_CHECK(BITS, _context, elf_ehdr, elf_shdr)                       \
+  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {                             \
+    if (elf_shdr[i].sh_type == SHT_DYNSYM) {                                   \
+      Elf_PROP(BITS, _Sym) *dot_sym =                                          \
+          (Elf_PROP(BITS, _Sym) *)((void *)elf_ehdr + elf_shdr[i].sh_offset);  \
+      int num = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize;                  \
+      void *sdata =                                                            \
+          (void *)elf_ehdr + elf_shdr[elf_shdr[i].sh_link].sh_offset;          \
+      for (size_t j = 0; j < num; j++) {                                       \
+        if (sdata + dot_sym[j].st_name == NULL ||                              \
+            !is_pointer_valid(sdata + dot_sym[j].st_name))                     \
+          continue;                                                            \
+        if (strcmp((char *)(sdata + dot_sym[j].st_name), CANARY_STR_1) == 0 || \
+            strcmp((char *)(sdata + dot_sym[j].st_name), CANARY_STR_2) == 0) { \
+          context->elf_prot.canary = true;                                     \
+          break;                                                               \
+        }                                                                      \
+      }                                                                        \
+    }                                                                          \
+  }
+
 int elf_load_file(elf_ctx_t *context, const char *pathname) {
   memset(context, 0, sizeof(elf_ctx_t));
 
@@ -81,78 +173,17 @@ int elf32_parse(elf_ctx_t *context) {
   context->arch.endian = elf_ehdr->e_ident[EI_DATA];
 
   // https://github.com/torvalds/linux/blob/v4.9/fs/binfmt_elf.c#L784-L789
-  size_t i, j;
-  for (i = 0; i < elf_ehdr->e_phnum; i++) {
-    if (elf_phdr[i].p_type == PT_GNU_STACK && !(elf_phdr[i].p_flags & PF_X)) {
-      context->elf_prot.nx = true;
-      break;
-    }
-  }
-
+  NX_CHECK(context, elf_ehdr, elf_phdr)
   // if binary type is DYN, pie is enable
-  if (elf_ehdr->e_type == ET_DYN) {
-    context->elf_prot.pie = true;
-  } else {
-    // Address base
-    for (i = 0; i < elf_ehdr->e_phnum; i++) {
-      if (elf_phdr[i].p_type == PT_LOAD) {
-        context->elf_prot.pie = elf_phdr[i].p_vaddr;
-        break;
-      }
-    }
-  }
-
+  PIE_CHECK(context, elf_ehdr, elf_phdr)
   // relro
-  for (i = 0; i < elf_ehdr->e_phnum; i++) {
-    if (elf_phdr[i].p_type == PT_GNU_RELRO) {
-      context->elf_prot.relro = RELRO_PARTIAL;
-      break;
-    }
-  }
-  for (i = 0; i < elf_ehdr->e_shnum; i++) {
-    if (elf_shdr[i].sh_type == SHT_DYNAMIC) {
-      Elf32_Dyn *dot_dynamic =
-          (Elf32_Dyn *)((void *)elf_ehdr + elf_shdr[i].sh_offset);
-      int num = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize, flags;
-
-      for (j = 0; j < num; j++) {
-        if (dot_dynamic[j].d_tag == DT_FLAGS) {
-          flags = dot_dynamic[j].d_un.d_val;
-          if (flags & DF_BIND_NOW) {
-            context->elf_prot.relro = RELRO_FULL;
-            break;
-          }
-        }
-
-        if (dot_dynamic[j].d_tag == DT_FLAGS_1) {
-          flags = dot_dynamic[j].d_un.d_val;
-          if (flags & DF_1_NOW) {
-            context->elf_prot.relro = RELRO_FULL;
-            break;
-          }
-        }
-      }
-    }
-  }
-
+  RELRO_CHECK(32, context, elf_ehdr, elf_phdr, elf_shdr)
   // rwx segments
-  for (i = 0; i < elf_ehdr->e_phnum; i++) {
-    int rwx = PF_X | PF_W;
-    if ((elf_phdr[i].p_flags & rwx) == rwx) {
-      context->elf_prot.rwx_seg = true;
-      break;
-    }
-  }
-
+  RWX_CHECK(context, elf_ehdr, elf_phdr)
   // writable segments
-  for (i = 0; i < elf_ehdr->e_phnum; i++) {
-    int rw = PF_W;
-    if ((elf_phdr[i].p_flags & rw) == rw) {
-      context->elf_prot.writable_seg = true;
-      break;
-    }
-  }
-
+  WRITEABLE_CHECK(context, elf_ehdr, elf_phdr)
+  // canary
+  CANARY_CHECK(32, context, elf_ehdr, elf_shdr)
   return 0;
 }
 
@@ -169,98 +200,17 @@ int elf64_parse(elf_ctx_t *context) {
   context->arch.endian = elf_ehdr->e_ident[EI_DATA];
 
   // https://github.com/torvalds/linux/blob/v4.9/fs/binfmt_elf.c#L784-L789
-  size_t i, j;
-  for (i = 0; i < elf_ehdr->e_phnum; i++) {
-    if (elf_phdr[i].p_type == PT_GNU_STACK && !(elf_phdr[i].p_flags & PF_X)) {
-      context->elf_prot.nx = true;
-      break;
-    }
-  }
-
+  NX_CHECK(context, elf_ehdr, elf_phdr)
   // if binary type is DYN, pie is enable
-  if (elf_ehdr->e_type == ET_DYN) {
-    context->elf_prot.pie = true;
-  } else {
-    // Address base
-    for (i = 0; i < elf_ehdr->e_phnum; i++) {
-      if (elf_phdr[i].p_type == PT_LOAD) {
-        context->elf_prot.pie = elf_phdr[i].p_vaddr;
-        break;
-      }
-    }
-  }
-
-  // canary
-  for (i = 0; i < elf_ehdr->e_phnum; i++) {
-    if (elf_shdr[i].sh_type == SHT_DYNSYM) {
-      Elf64_Sym *dot_sym =
-          (Elf64_Sym *)((void *)elf_ehdr + elf_shdr[i].sh_offset);
-      int num = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize;
-      void *sdata = (void *)elf_ehdr + elf_shdr[elf_shdr[i].sh_link].sh_offset;
-      for (j = 0; j < num; j++) {
-        if (sdata + dot_sym[j].st_name == NULL ||
-            !is_pointer_valid(sdata + dot_sym[j].st_name))
-          continue;
-
-        if (strcmp((char *)(sdata + dot_sym[j].st_name), CANARY_STR_1) == 0 ||
-            strcmp((char *)(sdata + dot_sym[j].st_name), CANARY_STR_2) == 0) {
-          context->elf_prot.canary = true;
-          break;
-        }
-      }
-    }
-  }
-
+  PIE_CHECK(context, elf_ehdr, elf_phdr)
   // relro
-  for (i = 0; i < elf_ehdr->e_phnum; i++) {
-    if (elf_phdr[i].p_type == PT_GNU_RELRO) {
-      context->elf_prot.relro = RELRO_PARTIAL;
-      break;
-    }
-  }
-  for (i = 0; i < elf_ehdr->e_shnum; i++) {
-    if (elf_shdr[i].sh_type == SHT_DYNAMIC) {
-      Elf64_Dyn *dot_dynamic =
-          (Elf64_Dyn *)((void *)elf_ehdr + elf_shdr[i].sh_offset);
-      int num = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize, flags;
-
-      for (j = 0; j < num; j++) {
-        if (dot_dynamic[j].d_tag == DT_FLAGS) {
-          flags = dot_dynamic[j].d_un.d_val;
-          if (flags & DF_BIND_NOW) {
-            context->elf_prot.relro = RELRO_FULL;
-            break;
-          }
-        }
-
-        if (dot_dynamic[j].d_tag == DT_FLAGS_1) {
-          flags = dot_dynamic[j].d_un.d_val;
-          if (flags & DF_1_NOW) {
-            context->elf_prot.relro = RELRO_FULL;
-            break;
-          }
-        }
-      }
-    }
-  }
-
+  RELRO_CHECK(64, context, elf_ehdr, elf_phdr, elf_shdr)
   // rwx segments
-  for (i = 0; i < elf_ehdr->e_phnum; i++) {
-    int rwx = PF_X | PF_W;
-    if ((elf_phdr[i].p_flags & rwx) == rwx) {
-      context->elf_prot.rwx_seg = true;
-      break;
-    }
-  }
-
+  RWX_CHECK(context, elf_ehdr, elf_phdr)
   // writable segments
-  for (i = 0; i < elf_ehdr->e_phnum; i++) {
-    int rw = PF_W;
-    if ((elf_phdr[i].p_flags & rw) == rw) {
-      context->elf_prot.writable_seg = true;
-      break;
-    }
-  }
+  WRITEABLE_CHECK(context, elf_ehdr, elf_phdr)
+  // canary
+  CANARY_CHECK(64, context, elf_ehdr, elf_shdr)
 
   return 0;
 }

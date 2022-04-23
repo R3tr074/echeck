@@ -26,7 +26,7 @@ typedef struct elf_prot {
 } elf_prot_t;
 
 typedef struct elf_arch {
-  int8_t e_machine;
+  uint16_t e_machine;
   int8_t e_classtype;
   int8_t endian;
 } elf_arch_t;
@@ -43,6 +43,10 @@ typedef struct elf_ctx {
 int elf_load_file(elf_ctx_t *context, const char *pathname);
 int elf_unload_file(elf_ctx_t *context);
 int elf_parse(elf_ctx_t *context);
+
+// elf parsers
+int elf32_parse(elf_ctx_t *context);
+int elf64_parse(elf_ctx_t *context);
 
 /* 32-bit ELF base types. */
 typedef uint32_t Elf32_Addr;
@@ -391,10 +395,13 @@ typedef struct elf64_shdr {
 #define ELFCLASSNUM 3
 
 /* e_machine */
-#define EM_386 0x3     /* Intel 80386 */
-#define EM_860 0x7     /* Intel 80860 */
-#define EM_ARM 0x28    /* ARM */
-#define EM_X86_64 0x3e /* AMD x86-64 architecture */
+#define EM_ARM 0x28     /* ARM 32 bit */
+#define EM_AARCH64 0xb7 /* ARM 64 bit */
+#define EM_PPC 0x14     /* PowerPC */
+#define EM_PPC64 0x15   /* PowerPC64 */
+#define EM_386 0x3      /* Intel 80386 */
+#define EM_860 0x7      /* Intel 80860 */
+#define EM_X86_64 0x3e  /* AMD x86-64 architecture */
 
 #define ELFDATANONE 0  /* e_ident[EI_DATA] */
 #define ELFDATA2LSB 1  // little

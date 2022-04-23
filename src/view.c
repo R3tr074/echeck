@@ -20,6 +20,9 @@ char *join_arch_string(elf_ctx_t *context) {
     case EM_ARM:
       arch_name = "arm";
       break;
+    case EM_AARCH64:
+      arch_name = "aarch";
+      break;
     case EM_X86_64:
       arch_name = "amd64";
       break;

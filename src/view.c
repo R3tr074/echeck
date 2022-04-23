@@ -91,7 +91,7 @@ void format_context(elf_ctx_t *context) {
   }
 
   printf(SPACE "PIE:  " SPACE);
-  if (context->elf_prot.pie == 0) {
+  if (context->elf_prot.pie == true) {
     printf(GREEN "PIE enabled\n" NO_COLOR);
   } else {
     printf(RED "No PIE (0x%x)\n" NO_COLOR, context->elf_prot.pie);

@@ -8,7 +8,7 @@ elseif is_mode("debug") then
     add_ldflags("-fno-pic", "-no-pie", "-fsanitize=address")
 end
 
-target("deadcheck")
+target("echeck")
     set_kind("binary")
     add_includedirs("src/include")
     add_files("src/*.c")

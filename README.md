@@ -13,3 +13,5 @@
   - https://github.com/lockedbyte/protcheck
 - pwntools:
   - https://github.com/Gallopsled/pwntools
+- radare2
+  - https://github.com/radareorg/radare2

@@ -100,6 +100,12 @@ void format_context(elf_ctx_t *context) {
     printf(RED "No PIE (0x%x)\n" NO_COLOR, context->elf_prot.pie);
   }
 
+  if (context->elf_prot.fortify != false) {
+    printf(SPACE "FORTIFY:  ");
+    printf(GREEN "Enabled" NO_COLOR " (%d functions)\n" NO_COLOR,
+           context->elf_prot.fortify);
+  }
+
   if (context->elf_prot.rwx_seg ||
       (!(context->elf_prot.nx) && context->elf_prot.writable_seg)) {
     printf(SPACE "RWX:  " SPACE RED "Has RWX segments\n" NO_COLOR);

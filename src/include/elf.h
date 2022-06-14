@@ -13,6 +13,7 @@
 
 #define CANARY_STR_1 "__stack_chk_fail"
 #define CANARY_STR_2 "__intel_security_cookie"
+#define FORTIFY_SUFFIX "_chk"
 
 #define PT_GNU_RELRO 0x6474e552 /* Read-only after relocation */
 
@@ -23,6 +24,7 @@ typedef struct elf_prot {
   bool writable_seg;
   int pie;
   int relro;
+  int fortify;
 } elf_prot_t;
 
 typedef struct elf_arch {

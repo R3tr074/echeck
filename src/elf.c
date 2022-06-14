@@ -13,8 +13,9 @@
 #include <unistd.h>
 
 #include "macros.h"
+#include "utils.h"
 
-#define Elf_PROP(bits, prop) Elf ##bits ##prop
+#define Elf_PROP(bits, prop) Elf##bits##prop
 
 #define NX_CHECK(_context, elf_ehdr, elf_phdr)                                 \
   for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {                             \
@@ -26,7 +27,7 @@
 
 #define PIE_CHECK(_context, elf_ehdr, elf_phdr)       \
   if (elf_ehdr->e_type == ET_DYN) {                   \
-    _context->elf_prot.pie = true;                     \
+    _context->elf_prot.pie = true;                    \
   } else {                                            \
     for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {  \
       if (elf_phdr[i].p_type == PT_LOAD) {            \
@@ -67,13 +68,13 @@
     }                                                                         \
   }
 
-#define RWX_CHECK(_context, elf_ehdr, elf_phdr) \
-  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {     \
-    int rwx = PF_X | PF_W;                      \
-    if ((elf_phdr[i].p_flags & rwx) == rwx) {   \
-      _context->elf_prot.rwx_seg = true;         \
-      break;                                    \
-    }                                           \
+#define RWX_CHECK(_context, elf_ehdr, elf_phdr)    \
+  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) { \
+    int rwx = PF_X | PF_W;                         \
+    if ((elf_phdr[i].p_flags & rwx) == rwx) {      \
+      _context->elf_prot.rwx_seg = true;           \
+      break;                                       \
+    }                                              \
   }
 
 #define WRITEABLE_CHECK(_context, elf_ehdr, elf_phdr) \
@@ -85,25 +86,42 @@
     }                                                 \
   }
 
-#define CANARY_CHECK(BITS, _context, elf_ehdr, elf_shdr)                       \
-  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {                             \
-    if (elf_shdr[i].sh_type == SHT_DYNSYM) {                                   \
-      Elf_PROP(BITS, _Sym) *dot_sym =                                          \
-          (Elf_PROP(BITS, _Sym) *)((void *)elf_ehdr + elf_shdr[i].sh_offset);  \
-      int num = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize;                  \
-      void *sdata =                                                            \
-          (void *)elf_ehdr + elf_shdr[elf_shdr[i].sh_link].sh_offset;          \
-      for (size_t j = 0; j < num; j++) {                                       \
-        if (sdata + dot_sym[j].st_name == NULL ||                              \
-            !is_pointer_valid(sdata + dot_sym[j].st_name))                     \
-          continue;                                                            \
-        if (strcmp((char *)(sdata + dot_sym[j].st_name), CANARY_STR_1) == 0 || \
-            strcmp((char *)(sdata + dot_sym[j].st_name), CANARY_STR_2) == 0) { \
-          _context->elf_prot.canary = true;                                     \
-          break;                                                               \
-        }                                                                      \
-      }                                                                        \
-    }                                                                          \
+#define CANARY_CHECK(BITS, _context, elf_ehdr, elf_shdr)                      \
+  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {                            \
+    if (elf_shdr[i].sh_type == SHT_DYNSYM) {                                  \
+      Elf_PROP(BITS, _Sym) *dot_sym =                                         \
+          (Elf_PROP(BITS, _Sym) *)((void *)elf_ehdr + elf_shdr[i].sh_offset); \
+      int num = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize;                 \
+      void *sdata =                                                           \
+          (void *)elf_ehdr + elf_shdr[elf_shdr[i].sh_link].sh_offset;         \
+      for (size_t j = 0; j < num; j++) {                                      \
+        char *func_name = sdata + dot_sym[j].st_name;                         \
+        if (func_name == NULL || !is_pointer_valid(func_name)) continue;      \
+        if (strcmp(func_name, CANARY_STR_1) == 0 ||                           \
+            strcmp(func_name, CANARY_STR_2) == 0) {                           \
+          _context->elf_prot.canary = true;                                   \
+          break;                                                              \
+        }                                                                     \
+      }                                                                       \
+    }                                                                         \
+  }
+
+#define FORTIFY_CHECK(BITS, _context, elf_ehdr, elf_shdr)                     \
+  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {                            \
+    if (elf_shdr[i].sh_type == SHT_DYNSYM) {                                  \
+      Elf_PROP(BITS, _Sym) *dot_sym =                                         \
+          (Elf_PROP(BITS, _Sym) *)((void *)elf_ehdr + elf_shdr[i].sh_offset); \
+      int num = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize;                 \
+      void *sdata =                                                           \
+          (void *)elf_ehdr + elf_shdr[elf_shdr[i].sh_link].sh_offset;         \
+      for (size_t j = 0; j < num; j++) {                                      \
+        char *func_name = sdata + dot_sym[j].st_name;                         \
+        if (func_name == NULL || !is_pointer_valid(func_name)) continue;      \
+        if (ends_with(func_name, FORTIFY_SUFFIX)) {                           \
+          _context->elf_prot.fortify += 1;                                    \
+        }                                                                     \
+      }                                                                       \
+    }                                                                         \
   }
 
 int elf_load_file(elf_ctx_t *context, const char *pathname) {
@@ -184,6 +202,8 @@ int elf32_parse(elf_ctx_t *context) {
   WRITEABLE_CHECK(context, elf_ehdr, elf_phdr)
   // canary
   CANARY_CHECK(32, context, elf_ehdr, elf_shdr)
+  // fortify
+  FORTIFY_CHECK(32, context, elf_ehdr, elf_shdr)
   return 0;
 }
 
@@ -212,6 +232,8 @@ int elf64_parse(elf_ctx_t *context) {
   // canary
   CANARY_CHECK(64, context, elf_ehdr, elf_shdr)
 
+  // fortify
+  FORTIFY_CHECK(64, context, elf_ehdr, elf_shdr)
   return 0;
 }
 
@@ -224,6 +246,7 @@ int elf_parse(elf_ctx_t *context) {
   context->elf_prot.canary = false;
   context->elf_prot.nx = false;
   context->elf_prot.pie = false;
+  context->elf_prot.fortify = false;
 
   int8_t *class_ptr = context->map_addr + EI_CLASS;  // e_type
   // int8_t *e_machine = context->map_addr + EI_CLASS + 4;  // e_machine

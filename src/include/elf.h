@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _UAPI_LINUX_ELF_H
 #define _UAPI_LINUX_ELF_H
-
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
+
+#include "utils.h"
 
 #define RELRO_NONE 0
 #define RELRO_PARTIAL 1
@@ -34,10 +35,7 @@ typedef struct elf_arch {
 } elf_arch_t;
 
 typedef struct elf_ctx {
-  void *map_addr;
-  char *path;
-  uintptr_t map_end;
-  off_t map_size;
+  file_load_t *file_load;
   elf_prot_t elf_prot;
   elf_arch_t arch;
 } elf_ctx_t;
@@ -49,6 +47,9 @@ int elf_parse(elf_ctx_t *context);
 // elf parsers
 int elf32_parse(elf_ctx_t *context);
 int elf64_parse(elf_ctx_t *context);
+
+// load
+int elf_load(file_load_t *file_ctx);
 
 /* 32-bit ELF base types. */
 typedef uint32_t Elf32_Addr;

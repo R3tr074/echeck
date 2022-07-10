@@ -2,7 +2,9 @@
 #include <stdlib.h>
 
 #include "elf.h"
+#include "macho.h"
 #include "usage.h"
+#include "utils.h"
 #include "view.h"
 
 int main(int argc, char *argv[]) {
@@ -13,27 +15,31 @@ int main(int argc, char *argv[]) {
 
   int prog_ret = EXIT_SUCCESS;
   for (int i = 1; i < argc; i++) {
-    elf_ctx_t context;
+    file_load_t file_ctx;
     int ret;
 
-    ret = elf_load_file(&context, argv[i]);
+    ret = load_file(&file_ctx, argv[i]);
     if (ret != 0) {
       fprintf(stderr, "Error to open \"%s\" file\n", argv[1]);
       prog_ret = EXIT_FAILURE;
       continue;
     }
 
-    ret = elf_parse(&context);
-    if (ret != 0) {
-      fprintf(stderr, "Error to parse \"%s\" file\nthis is really a elf?\n",
+    if (is_elf(&file_ctx)) {
+      ret = elf_load(&file_ctx);
+    } else if (is_macho(&file_ctx)) {
+      ret = macho_load(&file_ctx);
+    } else if (is_fat_macho(&file_ctx)) {
+      ret = macho_fat_load(&file_ctx);
+    } else {
+      fprintf(stderr, "Error to parse \"%s\" file\nNot recognized file type\n",
               argv[1]);
       prog_ret = EXIT_FAILURE;
       continue;
     }
-
-    format_context(&context);
-
-    elf_unload_file(&context);
+    if (ret != 0) {
+      prog_ret = EXIT_FAILURE;
+    }
   }
   return prog_ret;
 }

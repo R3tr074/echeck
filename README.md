@@ -19,3 +19,5 @@ Echeck is a platform generic tool designed to check binary protections enabled
   - https://github.com/Gallopsled/pwntools
 - radare2
   - https://github.com/radareorg/radare2
+- checksec.rs
+  - https://github.com/etke/checksec.rs

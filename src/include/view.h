@@ -2,6 +2,7 @@
 #define VIEW_H
 
 #include "elf.h"
+#include "macho.h"
 
 #define BLUE "\e[34m"
 #define RED "\e[31m"
@@ -12,6 +13,7 @@
 
 #define INFO_MSG "[" BOLD BLUE "*" NO_COLOR "]"
 
-void format_context(elf_ctx_t *context);
+void elf_format_context(elf_ctx_t *context);
+void macho_format_context(macho_ctx_t *context);
 
 #endif

@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <sys/types.h>
 
+#include "common.h"
 #include "utils.h"
-
 #define RELRO_NONE 0
 #define RELRO_PARTIAL 1
 #define RELRO_FULL 2
@@ -26,6 +26,7 @@ typedef struct elf_prot {
   int pie;
   int relro;
   int fortify;
+  char *inter_func[INTERESTING_FUNCS_LEN];
 } elf_prot_t;
 
 typedef struct elf_arch {
@@ -40,8 +41,8 @@ typedef struct elf_ctx {
   elf_arch_t arch;
 } elf_ctx_t;
 
-int elf_load_file(elf_ctx_t *context, const char *pathname);
-int elf_unload_file(elf_ctx_t *context);
+// int elf_load_file(elf_ctx_t *context, const char *pathname);
+// int elf_unload_file(elf_ctx_t *context);
 int elf_parse(elf_ctx_t *context);
 
 // elf parsers

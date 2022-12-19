@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "elf.h"
+#include "elf_def.h"
 #include "macho.h"
 #include "usage.h"
 #include "utils.h"

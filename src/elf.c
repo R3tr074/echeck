@@ -2,7 +2,7 @@
  * Elf parser
  */
 
-#include "elf.h"
+#include "elf_def.h"
 
 #include <fcntl.h>
 #include <stdio.h>

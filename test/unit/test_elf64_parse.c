@@ -1,4 +1,6 @@
-#include "elf.h"
+#include <stdlib.h>
+
+#include "elf_def.h"
 #include "minunit.h"
 
 int test_aarch64_full_prot(void) {

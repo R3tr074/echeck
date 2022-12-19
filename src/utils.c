@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "elf.h"
+#include "elf_def.h"
 #include "macho.h"
 
 bool ends_with(const char* str, const char* suffix) {

@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "elf.h"
+#include "common.h"
+#include "elf_def.h"
 #include "macho.h"
 #define SPACE "    "
 

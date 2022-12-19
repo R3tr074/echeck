@@ -2,8 +2,6 @@
  * Elf parser
  */
 
-#include "elf_def.h"
-
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +11,7 @@
 #include <unistd.h>
 
 #include "common.h"
+#include "elf_def.h"
 #include "macros.h"
 #include "utils.h"
 #include "view.h"
@@ -67,6 +66,31 @@
           }                                                                   \
         }                                                                     \
       }                                                                       \
+    }                                                                         \
+  }
+
+#define RPATH_CHECK(BITS, _context, elf_ehdr, elf_phdr, elf_shdr)             \
+  for (size_t i = 0; i < elf_ehdr->e_shnum; i++) {                            \
+    Elf_PROP(BITS, _Addr) rpath_addr = 0;                                     \
+    Elf_PROP(BITS, _Addr) strtab_addr = 0;                                    \
+    if (elf_shdr[i].sh_type == SHT_DYNAMIC) {                                 \
+      Elf_PROP(BITS, _Dyn) *dot_dynamic =                                     \
+          (Elf_PROP(BITS, _Dyn) *)((void *)elf_ehdr + elf_shdr[i].sh_offset); \
+      int num = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize, flags;          \
+      for (size_t j = 0; j < num; j++) {                                      \
+        if (dot_dynamic[j].d_tag == DT_STRTAB) {                              \
+          strtab_addr = dot_dynamic[j].d_un.d_ptr;                            \
+        }                                                                     \
+        if (dot_dynamic[j].d_tag == DT_RUNPATH ||                             \
+            dot_dynamic[j].d_tag == DT_RPATH) {                               \
+          rpath_addr = dot_dynamic[j].d_un.d_ptr;                             \
+        }                                                                     \
+      }                                                                       \
+    }                                                                         \
+    if (rpath_addr != 0 && strtab_addr != 0) {                                \
+      char *rpath = (void *)elf_ehdr + strtab_addr + rpath_addr;              \
+      _context->elf_prot.rpath = strdup(rpath);                               \
+      break;                                                                  \
     }                                                                         \
   }
 
@@ -214,6 +238,7 @@ int elf64_parse(elf_ctx_t *context) {
 
   // fortify
   FORTIFY_CHECK(64, context, elf_ehdr, elf_shdr)
+  RPATH_CHECK(64, context, elf_ehdr, elf_phdr, elf_shdr)
   INTERESTING_FUNC_CHECK(64, context, elf_ehdr, elf_shdr)
   return 0;
 }

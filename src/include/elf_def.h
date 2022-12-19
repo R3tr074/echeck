@@ -26,6 +26,7 @@ typedef struct elf_prot {
   int pie;
   int relro;
   int fortify;
+  char *rpath;
   char *inter_func[INTERESTING_FUNCS_LEN];
 } elf_prot_t;
 
@@ -143,6 +144,7 @@ typedef int64_t Elf64_Sxword;
 #define DT_DEBUG 21
 #define DT_TEXTREL 22
 #define DT_JMPREL 23
+#define DT_RUNPATH 29
 #define DT_ENCODING 32
 #define OLD_DT_LOOS 0x60000000
 #define DT_LOOS 0x6000000d

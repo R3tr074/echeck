@@ -149,6 +149,10 @@ void elf_format_context(elf_ctx_t *context) {
       (!(context->elf_prot.nx) && context->elf_prot.writable_seg)) {
     printf(SPACE "RWX:  " SPACE RED "Has RWX segments\n" NO_COLOR);
   }
+  if (context->elf_prot.rpath != NULL) {
+    printf(SPACE "RUNPATH:  " RED "b'%s'\n" NO_COLOR, context->elf_prot.rpath);
+    free(context->elf_prot.rpath);
+  }
 
   bool some_inter_func = false;
   for (size_t i = 0; i < INTERESTING_FUNCS_LEN; i++) {

@@ -63,7 +63,7 @@ int unload_file(file_load_t* context) {
     }
   }
 
-  memset(context, 0, sizeof(elf_ctx_t));
+  memset(context, 0, sizeof(file_load_t));
   return 0;
 }
 

@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "common.h"
 #include "macros.h"
 #include "utils.h"
 #include "view.h"
@@ -92,16 +93,37 @@
     if (elf_shdr[i].sh_type == SHT_DYNSYM) {                                  \
       Elf_PROP(BITS, _Sym) *dot_sym =                                         \
           (Elf_PROP(BITS, _Sym) *)((void *)elf_ehdr + elf_shdr[i].sh_offset); \
-      int num = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize;                 \
-      void *sdata =                                                           \
+      int sym_count = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize;           \
+      char *str_string =                                                      \
           (void *)elf_ehdr + elf_shdr[elf_shdr[i].sh_link].sh_offset;         \
-      for (size_t j = 0; j < num; j++) {                                      \
-        char *func_name = sdata + dot_sym[j].st_name;                         \
+      for (size_t j = 0; j < sym_count; j++) {                                \
+        char *func_name = str_string + dot_sym[j].st_name;                    \
         if (func_name == NULL || !is_pointer_valid(func_name)) continue;      \
         if (strcmp(func_name, CANARY_STR_1) == 0 ||                           \
             strcmp(func_name, CANARY_STR_2) == 0) {                           \
           _context->elf_prot.canary = true;                                   \
           break;                                                              \
+        }                                                                     \
+      }                                                                       \
+    }                                                                         \
+  }
+
+#define INTERESTING_FUNC_CHECK(BITS, _context, elf_ehdr, elf_shdr)            \
+  for (size_t i = 0; i < elf_ehdr->e_phnum; i++) {                            \
+    if (elf_shdr[i].sh_type == SHT_DYNSYM) {                                  \
+      Elf_PROP(BITS, _Sym) *dot_sym =                                         \
+          (Elf_PROP(BITS, _Sym) *)((void *)elf_ehdr + elf_shdr[i].sh_offset); \
+      int sym_count = elf_shdr[i].sh_size / elf_shdr[i].sh_entsize;           \
+      char *str_table =                                                       \
+          (void *)elf_ehdr + elf_shdr[elf_shdr[i].sh_link].sh_offset;         \
+      for (size_t j = 0; j < sym_count; j++) {                                \
+        char *func_name = str_table + dot_sym[j].st_name;                     \
+        if (func_name == NULL || !is_pointer_valid(func_name)) continue;      \
+        for (size_t i = 0; i < INTERESTING_FUNCS_LEN; i++) {                  \
+          if (strcmp(func_name, interesting_funcs[i]) == 0) {                 \
+            _context->elf_prot.inter_func[i] = strdup(func_name);             \
+            break;                                                            \
+          }                                                                   \
         }                                                                     \
       }                                                                       \
     }                                                                         \
@@ -159,6 +181,7 @@ int elf32_parse(elf_ctx_t *context) {
   CANARY_CHECK(32, context, elf_ehdr, elf_shdr)
   // fortify
   FORTIFY_CHECK(32, context, elf_ehdr, elf_shdr)
+  INTERESTING_FUNC_CHECK(32, context, elf_ehdr, elf_shdr)
   return 0;
 }
 
@@ -191,6 +214,7 @@ int elf64_parse(elf_ctx_t *context) {
 
   // fortify
   FORTIFY_CHECK(64, context, elf_ehdr, elf_shdr)
+  INTERESTING_FUNC_CHECK(64, context, elf_ehdr, elf_shdr)
   return 0;
 }
 
@@ -205,6 +229,7 @@ int elf_parse(elf_ctx_t *context) {
   context->elf_prot.pie = false;
   context->elf_prot.fortify = false;
   context->elf_prot.rwx_seg = false;
+  memset(context->elf_prot.inter_func, 0, sizeof(context->elf_prot.inter_func));
 
   int8_t *class_ptr = context->file_load->map_addr + EI_CLASS;  // e_type
   if (*class_ptr == ELFCLASS64)
@@ -220,14 +245,16 @@ int elf_parse(elf_ctx_t *context) {
 }
 
 int elf_load(file_load_t *file_ctx) {
-  elf_ctx_t context;
-  context.file_load = file_ctx;
-  if (elf_parse(&context) != 0) {
+  elf_ctx_t *context = malloc(sizeof(elf_ctx_t));
+  context->file_load = file_ctx;
+  if (elf_parse(context) != 0) {
     fprintf(stderr, "Error to parse \"%s\" file\nthis is really a elf?\n",
             file_ctx->path);
+    free(context);
     return -1;
   }
-  elf_format_context(&context);
+  elf_format_context(context);
+  free(context);
   unload_file(file_ctx);
   return 0;
 }

@@ -150,6 +150,24 @@ void elf_format_context(elf_ctx_t *context) {
     printf(SPACE "RWX:  " SPACE RED "Has RWX segments\n" NO_COLOR);
   }
 
+  bool some_inter_func = false;
+  for (size_t i = 0; i < INTERESTING_FUNCS_LEN; i++) {
+    if (context->elf_prot.inter_func[i] == NULL) continue;
+
+    if (!some_inter_func) {
+      printf(SPACE "FUNCS:" SPACE);
+      some_inter_func = true;
+    }
+    // only "dangerous" deliberate function
+    const char *color = strcmp(context->elf_prot.inter_func[i], "gets") == 0
+                            ? BOLD RED
+                            : BOLD YELLOW;
+    printf("%s%s" NO_COLOR, color, context->elf_prot.inter_func[i]);
+
+    free(context->elf_prot.inter_func[i]);
+    printf(" ");
+  }
+  if (some_inter_func) puts("");
   free(arch_name);
   return;
 }

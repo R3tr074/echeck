@@ -1,7 +1,7 @@
 #ifndef VIEW_H
 #define VIEW_H
 
-#include "elf.h"
+#include "elf_def.h"
 #include "macho.h"
 
 #define BLUE "\e[34m"

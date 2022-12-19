@@ -1,6 +1,6 @@
 BINDIR := bin
 BINS=$(patsubst %.c,$(BINDIR)/%,$(wildcard *.c))
-SOURCE=../../src/elf.c ../../src/utils.c
+SOURCE=../../src/elf.c ../../src/utils.c ../../src/view.c
 CFLAGS+=-I../../src/include/
 CFLAGS+=-g
 ifeq ($(ASAN),1)
